@@ -237,14 +237,27 @@ class WebBluetoothReceiptPrinter extends ReceiptPrinterDriver {
 		// See https://issues.chromium.org/issues/40167015#comment4
 		await device.watchAdvertisements();
 		// wait until in range
-		device.onadvertisementreceived = async (e) => {
-			if (this.#device?.gatt?.connected) {
-				this.#device.onadvertisementreceived = undefined;
-				return;
-			}
+		await new Promise((resolve, reject) => {
+			let timeout = setTimeout(() => {
+				device.onadvertisementreceived = undefined;
+				reject(new Error('Reconnection timeout after 5 seconds'));
+			}, 5000);
+			device.onadvertisementreceived = async (e) => {
+					if (this.#device?.gatt?.connected) {
+					clearTimeout(timeout);
+					device.onadvertisementreceived = undefined;
+						resolve();
+					return;
+					}
 
-			await this.#open(device);
-		}
+				await this.#open(device);
+				if (this.#device?.gatt?.connected) {
+					clearTimeout(timeout);
+					device.onadvertisementreceived = undefined;
+					resolve();
+				}
+			}
+		})
 	}
 
 	async #open(device) {
